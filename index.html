@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vesoljska Bitka</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #05050f;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            margin-bottom: 14px;
+            font-size: 26px;
+            color: #7df9ff;
+            letter-spacing: 2px;
+        }
+
+        canvas {
+            border: 2px solid #7df9ff;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(125, 249, 255, 0.3);
+            display: block;
+        }
+
+        #info {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #556;
+        }
+    </style>
+</head>
+<body>
+
+<h1>🚀 Vesoljska Bitka</h1>
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+<div id="info">Premikanje: ← → ali A D &nbsp;|&nbsp; Strel (Shoot): PRESLEDNICA &nbsp;|&nbsp; Ponovni začetek: ENTER</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const W = 800, H = 500;
+
+// =====================
+// ZVEZDE (STARS) - ozadje
+// =====================
+const stars = Array.from({ length: 150 }, () => ({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    r: Math.random() * 1.6 + 0.2,
+    speed: Math.random() * 0.3 + 0.05
+}));
+
+// =====================
+// TIPKOVNICA (KEYBOARD)
+// =====================
+const keys = {};
+document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Space') { e.preventDefault(); shoot(); }
+    if (e.code === 'Enter' && gameState === 'gameover') restartGame();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// =====================
+// IGRALEC (PLAYER)
+// =====================
+const player = {
+    x: W / 2 - 20,
+    y: H - 65,
+    w: 40,
+    h: 50,
+    speed: 5,
+    lives: 3,
+    invincible: 0,
+
+    update() {
+        if ((keys['ArrowLeft']  || keys['KeyA']) && this.x > 0)          this.x -= this.speed;
+        if ((keys['ArrowRight'] || keys['KeyD']) && this.x + this.w < W) this.x += this.speed;
+        if (this.invincible > 0) this.invincible--;
+    },
+
+    draw() {
+        // Utripa ko je zadeten (Blink when hit)
+        if (this.invincible > 0 && Math.floor(this.invincible / 6) % 2 === 0) return;
+
+        const cx = this.x + this.w / 2;
+
+        // Ognjeni curki (Engine flames)
+        const flameH = 10 + Math.random() * 8;
+        const moving = keys['ArrowLeft'] || keys['KeyA'] || keys['ArrowRight'] || keys['KeyD'];
+        ctx.fillStyle = moving ? `hsl(${30 + Math.random()*20}, 100%, 55%)` : 'rgba(255,140,40,0.7)';
+        ctx.beginPath();
+        ctx.moveTo(this.x + 10, this.y + this.h);
+        ctx.lineTo(cx, this.y + this.h + flameH);
+        ctx.lineTo(this.x + this.w - 10, this.y + this.h);
+        ctx.closePath();
+        ctx.fill();
+
+        // Trup rakete (Rocket body)
+        ctx.fillStyle = '#dde0ff';
+        ctx.beginPath();
+        ctx.moveTo(cx, this.y);                           // Vrh (top)
+        ctx.lineTo(this.x + this.w, this.y + this.h - 8);
+        ctx.lineTo(this.x + this.w - 6, this.y + this.h);
+        ctx.lineTo(this.x + 6, this.y + this.h);
+        ctx.lineTo(this.x, this.y + this.h - 8);
+        ctx.closePath();
+        ctx.fill();
+
+        // Levo krilo (Left fin)
+        ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath();
+        ctx.moveTo(this.x, this.y + this.h - 8);
+        ctx.lineTo(this.x - 14, this.y + this.h);
+        ctx.lineTo(this.x + 6, this.y + this.h);
+        ctx.closePath();
+        ctx.fill();
+
+        // Desno krilo (Right fin)
+        ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath();
+        ctx.moveTo(this.x + this.w, this.y + this.h - 8);
+        ctx.lineTo(this.x + this.w + 14, this.y + this.h);
+        ctx.lineTo(this.x + this.w - 6, this.y + this.h);
+        ctx.closePath();
+        ctx.fill();
+
+        // Okno rakete (Window)
+        ctx.fillStyle = '#7df9ff';
+        ctx.shadowBlur = 8;
+        ctx.shadowColor = '#7df9ff';
+        ctx.beginPath();
+        ctx.arc(cx, this.y + 20, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        // Odsev na oknu (Window glare)
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath();
+        ctx.arc(cx - 3, this.y + 17, 4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+};
+
+// =====================
+// LASER (STREL)
+// =====================
+let laser = null;
+const LASER_SPEED = 16;
+
+function shoot() {
+    if (laser || gameState !== 'playing') return;
+    laser = {
+        x:       player.x + player.w / 2,
+        topY:    player.y,
+        bottomY: player.y
+    };
+}
+
+// =====================
+// PLANETI / ASTEROIDI (BUBBLES)
+// =====================
+const planetColors = [
+    { fill: '#ff6b6b', stroke: '#cc3333', crater: 'rgba(0,0,0,0.2)' },
+    { fill: '#ffd93d', stroke: '#cc9900', crater: 'rgba(0,0,0,0.15)' },
+    { fill: '#6bcb77', stroke: '#3a8a44', crater: 'rgba(0,0,0,0.2)' },
+    { fill: '#4d96ff', stroke: '#1a5fcc', crater: 'rgba(255,255,255,0.2)' },
+    { fill: '#c77dff', stroke: '#7b2fc7', crater: 'rgba(0,0,0,0.2)' },
+    { fill: '#ff9f43', stroke: '#cc6600', crater: 'rgba(0,0,0,0.2)' },
+];
+
+// Polmeri po velikosti (Radii by size level): 1=majhen, 2=srednji, 3=velik
+const RADII = { 1: 14, 2: 26, 3: 42 };
+
+class Planet {
+    constructor(x, y, vx, vy, sizeLevel, colorIndex) {
+        this.x = x;
+        this.y = y;
+        this.vx = vx;
+        this.vy = vy;
+        this.sizeLevel = sizeLevel;
+        this.radius    = RADII[sizeLevel];
+        this.colorIndex = colorIndex !== undefined
+            ? colorIndex
+            : Math.floor(Math.random() * planetColors.length);
+        this.angle = Math.random() * Math.PI * 2;
+        this.rotSpeed = (Math.random() - 0.5) * 0.03;
+    }
+
+    update() {
+        this.vy    += 0.18;   // Gravitacija (gravity)
+        this.x     += this.vx;
+        this.y     += this.vy;
+        this.angle += this.rotSpeed;
+
+        // Odboj od sten (Bounce off walls)
+        if (this.x - this.radius < 0) {
+            this.x  = this.radius;
+            this.vx = Math.abs(this.vx);
+        }
+        if (this.x + this.radius > W) {
+            this.x  = W - this.radius;
+            this.vx = -Math.abs(this.vx);
+        }
+
+        // Odboj od stropa (Bounce off ceiling)
+        if (this.y - this.radius < 0) {
+            this.y  = this.radius;
+            this.vy = Math.abs(this.vy);
+        }
+
+        // Odboj od tal (Bounce off floor)
+        const floor = H - 10;
+        if (this.y + this.radius > floor) {
+            this.y  = floor - this.radius;
+            const bounceV = { 1: -5, 2: -7, 3: -9 }[this.sizeLevel];
+            this.vy = bounceV;
+        }
+    }
+
+    draw() {
+        const c = planetColors[this.colorIndex];
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.rotate(this.angle);
+
+        // Planet
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = c.fill;
+        ctx.fill();
+        ctx.strokeStyle = c.stroke;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Prstan (Ring) — samo veliki planeti
+        if (this.sizeLevel === 3) {
+            ctx.beginPath();
+            ctx.ellipse(0, 0, this.radius * 1.7, this.radius * 0.38, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = c.stroke;
+            ctx.lineWidth = 3;
+            ctx.globalAlpha = 0.7;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+        }
+
+        // Kraterji (Craters)
+        ctx.fillStyle = c.crater;
+        ctx.beginPath();
+        ctx.arc(this.radius * 0.3, -this.radius * 0.3, this.radius * 0.22, 0, Math.PI * 2);
+        ctx.fill();
+        if (this.sizeLevel >= 2) {
+            ctx.beginPath();
+            ctx.arc(-this.radius * 0.4, this.radius * 0.15, this.radius * 0.16, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        // Odsev (Highlight)
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.beginPath();
+        ctx.arc(-this.radius * 0.25, -this.radius * 0.35, this.radius * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+
+    // Razpolovi planet (Split planet)
+    split() {
+        if (this.sizeLevel <= 1) return [];
+        const newSize = this.sizeLevel - 1;
+        const speed   = newSize === 2 ? 3.5 : 5;
+        return [
+            new Planet(this.x, this.y, -speed, -5, newSize, this.colorIndex),
+            new Planet(this.x, this.y,  speed, -5, newSize, this.colorIndex)
+        ];
+    }
+}
+
+// =====================
+// STANJE IGRE (GAME STATE)
+// =====================
+let planets   = [];
+let score     = 0;
+let level     = 1;
+let gameState = 'playing';
+let timer     = 0;
+
+function initLevel(lvl) {
+    planets  = [];
+    laser    = null;
+    player.x = W / 2 - player.w / 2;
+    player.invincible = 0;
+    gameState = 'playing';
+
+    // Več planetov z vsakim nivojem (More planets each level)
+    const count = Math.min(lvl + 1, 5);
+    for (let i = 0; i < count; i++) {
+        const x  = 100 + Math.random() * (W - 200);
+        const vx = (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 1.5 + lvl * 0.2);
+        planets.push(new Planet(x, 80, vx, 0, 3));
+    }
+}
+
+// =====================
+// HUD (PRIKAZ STANJA)
+// =====================
+function drawHUD() {
+    ctx.fillStyle = '#7df9ff';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Točke: ${score}`, 14, 28);
+
+    ctx.textAlign = 'center';
+    ctx.fillText(`Nivo ${level}`, W / 2, 28);
+
+    ctx.textAlign = 'right';
+    for (let i = 0; i < player.lives; i++) {
+        ctx.font = '18px Arial';
+        ctx.fillText('🚀', W - 14 - i * 26, 28);
+    }
+    ctx.textAlign = 'left';
+}
+
+// =====================
+// OZADJE (BACKGROUND)
+// =====================
+function drawBackground() {
+    ctx.fillStyle = '#05050f';
+    ctx.fillRect(0, 0, W, H);
+
+    // Premikajoče zvezde (Scrolling stars)
+    stars.forEach(s => {
+        s.y += s.speed;
+        if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+        ctx.fillStyle = 'white';
+        ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.002 + s.x) * 0.3;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Tla (Ground)
+    ctx.fillStyle = '#0d0d2a';
+    ctx.fillRect(0, H - 10, W, 10);
+    ctx.fillStyle = '#7df9ff';
+    ctx.fillRect(0, H - 10, W, 2);
+}
+
+// =====================
+// GLAVNA ZANKA (GAME LOOP)
+// =====================
+function gameLoop() {
+    drawBackground();
+
+    if (gameState === 'playing') {
+
+        // --- Posodobi (Update) ---
+        player.update();
+
+        // Laser se premika navzgor (Laser moves up)
+        if (laser) {
+            laser.topY -= LASER_SPEED;
+
+            if (laser.topY <= 0) {
+                laser = null;
+            } else {
+                // Preveri trk laserja s planeti (Check laser-planet collision)
+                for (let i = planets.length - 1; i >= 0; i--) {
+                    const p = planets[i];
+                    if (
+                        Math.abs(laser.x - p.x) < p.radius &&
+                        laser.topY < p.y + p.radius
+                    ) {
+                        const newPlanets = p.split();
+                        planets.splice(i, 1);
+                        planets.push(...newPlanets);
+                        score += (4 - p.sizeLevel) * 15;
+                        laser = null;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Posodobi planete (Update planets)
+        planets.forEach(p => p.update());
+
+        // Preveri trk igralca s planeti (Check player-planet collision)
+        if (player.invincible === 0) {
+            for (const p of planets) {
+                const dx   = (player.x + player.w / 2) - p.x;
+                const dy   = (player.y + player.h / 2) - p.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < p.radius + 16) {
+                    player.lives--;
+                    player.invincible = 150;
+                    laser = null;
+                    if (player.lives <= 0) gameState = 'gameover';
+                    break;
+                }
+            }
+        }
+
+        // Nivo končan (Level complete)
+        if (planets.length === 0) {
+            gameState = 'levelcomplete';
+            timer = 150;
+        }
+
+        // --- Riši (Draw) ---
+
+        // Laser žarek (Laser beam)
+        if (laser) {
+            ctx.save();
+            ctx.shadowBlur = 18;
+            ctx.shadowColor = '#00ff88';
+            ctx.strokeStyle = '#00ff88';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(laser.x, laser.bottomY);
+            ctx.lineTo(laser.x, laser.topY);
+            ctx.stroke();
+            // Konica laserja (Laser tip glow)
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(laser.x, laser.topY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+
+        planets.forEach(p => p.draw());
+        player.draw();
+        drawHUD();
+
+    } else if (gameState === 'levelcomplete') {
+
+        planets.forEach(p => p.draw());
+        player.draw();
+        drawHUD();
+
+        timer--;
+
+        // Overlay
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#7df9ff';
+        ctx.font = 'bold 46px Arial';
+        ctx.fillText(`🎉 Nivo ${level} končan!`, W / 2, H / 2 - 20);
+        ctx.font = '22px Arial';
+        ctx.fillStyle = 'white';
+        ctx.fillText(`Točke: ${score}`, W / 2, H / 2 + 25);
+        ctx.textAlign = 'left';
+
+        if (timer <= 0) {
+            level++;
+            initLevel(level);
+        }
+
+    } else if (gameState === 'gameover') {
+
+        planets.forEach(p => p.draw());
+        player.draw();
+        drawHUD();
+
+        ctx.fillStyle = 'rgba(0,0,0,0.65)';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 52px Arial';
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = '#ff0000';
+        ctx.fillText('💥 KONEC IGRE!', W / 2, H / 2 - 50);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = 'white';
+        ctx.font = '26px Arial';
+        ctx.fillText(`Končne točke (Final score): ${score}`, W / 2, H / 2 + 10);
+        ctx.font = '18px Arial';
+        ctx.fillStyle = '#aaa';
+        ctx.fillText('Pritisni ENTER za ponoven začetek', W / 2, H / 2 + 55);
+        ctx.textAlign = 'left';
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+function restartGame() {
+    score  = 0;
+    level  = 1;
+    player.lives = 3;
+    initLevel(1);
+}
+
+// Začni igro (Start game)
+initLevel(1);
+gameLoop();
+</script>
+</body>
+</html>
