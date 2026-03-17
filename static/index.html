@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vesoljska Bitka</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #05050f;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: Arial, sans-serif;
+        }
+
+        h1 {
+            margin-bottom: 14px;
+            font-size: 26px;
+            color: #7df9ff;
+            letter-spacing: 2px;
+        }
+
+        canvas {
+            border: 2px solid #7df9ff;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(125, 249, 255, 0.3);
+            display: block;
+        }
+
+        #info {
+            margin-top: 12px;
+            font-size: 14px;
+            color: #556;
+        }
+
+        /* ===== LESTVICA (LEADERBOARD) ===== */
+        #leaderboard {
+            margin-top: 24px;
+            width: 800px;
+            background: #0d0d2a;
+            border: 1px solid #7df9ff33;
+            border-radius: 10px;
+            padding: 16px 20px;
+            margin-bottom: 40px;
+        }
+
+        #leaderboard h2 {
+            color: #7df9ff;
+            font-size: 18px;
+            margin-bottom: 12px;
+            text-align: center;
+        }
+
+        #leaderboard table {
+            width: 100%;
+            border-collapse: collapse;
+            color: white;
+            font-size: 14px;
+        }
+
+        #leaderboard th {
+            color: #7df9ff;
+            padding: 6px 10px;
+            text-align: left;
+            border-bottom: 1px solid #7df9ff33;
+        }
+
+        #leaderboard td {
+            padding: 6px 10px;
+            border-bottom: 1px solid #ffffff11;
+        }
+
+        #leaderboard tr:first-child td { color: gold; }
+        #leaderboard tr:nth-child(2) td { color: silver; }
+        #leaderboard tr:nth-child(3) td { color: #cd7f32; }
+
+        /* ===== MODAL ZA IME (NAME MODAL) ===== */
+        #nameModal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #nameModal.show { display: flex; }
+
+        #nameModalBox {
+            background: #0d0d2a;
+            border: 2px solid #7df9ff;
+            border-radius: 12px;
+            padding: 32px;
+            text-align: center;
+            color: white;
+        }
+
+        #nameModalBox h2 { color: #7df9ff; margin-bottom: 8px; font-size: 22px; }
+        #nameModalBox p  { color: #aaa; margin-bottom: 20px; font-size: 15px; }
+
+        #nameInput {
+            width: 260px;
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid #7df9ff;
+            background: #05050f;
+            color: white;
+            font-size: 16px;
+            text-align: center;
+            outline: none;
+        }
+
+        #saveScoreBtn {
+            display: block;
+            margin: 16px auto 0;
+            padding: 10px 32px;
+            background: #7df9ff;
+            color: #05050f;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #saveScoreBtn:hover { background: #5dd8dd; }
+
+        /* ===== CHATBOT ===== */
+        #chatBtn {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #7df9ff;
+            border: none;
+            font-size: 26px;
+            cursor: pointer;
+            box-shadow: 0 0 20px rgba(125,249,255,0.5);
+            z-index: 50;
+        }
+
+        #chatWindow {
+            display: none;
+            position: fixed;
+            bottom: 96px;
+            right: 28px;
+            width: 340px;
+            height: 460px;
+            background: #0d0d2a;
+            border: 2px solid #7df9ff;
+            border-radius: 12px;
+            flex-direction: column;
+            z-index: 50;
+            overflow: hidden;
+        }
+
+        #chatWindow.open { display: flex; }
+
+        #chatHeader {
+            background: #7df9ff;
+            color: #05050f;
+            padding: 12px 16px;
+            font-weight: bold;
+            font-size: 15px;
+        }
+
+        #chatMessages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .chatMsg {
+            padding: 8px 12px;
+            border-radius: 10px;
+            font-size: 14px;
+            max-width: 85%;
+            line-height: 1.4;
+        }
+
+        .chatMsg.user {
+            background: #1a1a4a;
+            color: white;
+            align-self: flex-end;
+        }
+
+        .chatMsg.ai {
+            background: #0a2a2a;
+            color: #7df9ff;
+            align-self: flex-start;
+        }
+
+        #chatInputRow {
+            display: flex;
+            padding: 10px;
+            gap: 8px;
+            border-top: 1px solid #7df9ff33;
+        }
+
+        #chatInput {
+            flex: 1;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #7df9ff44;
+            background: #05050f;
+            color: white;
+            font-size: 14px;
+            outline: none;
+        }
+
+        #chatSend {
+            padding: 8px 14px;
+            background: #7df9ff;
+            color: #05050f;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #chatSend:disabled { opacity: 0.5; cursor: default; }
+    </style>
+</head>
+<body>
+
+<h1>🚀 Vesoljska Bitka</h1>
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+<div id="info">Premikanje: ← → ali A D &nbsp;|&nbsp; Strel: PRESLEDNICA &nbsp;|&nbsp; Ponovni začetek: ENTER</div>
+
+<!-- Lestvica (Leaderboard) -->
+<div id="leaderboard">
+    <h2>🏆 Najboljši Igralci (Leaderboard)</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Ime (Name)</th>
+                <th>Točke (Score)</th>
+                <th>Datum (Date)</th>
+            </tr>
+        </thead>
+        <tbody id="scoresBody">
+            <tr><td colspan="4" style="text-align:center;color:#556">Nalaganje...</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal za ime (Name modal) -->
+<div id="nameModal">
+    <div id="nameModalBox">
+        <h2>🎮 Igra Končana!</h2>
+        <p id="modalScore">Dosegli ste 0 točk!</p>
+        <input type="text" id="nameInput" placeholder="Vpiši svoje ime..." maxlength="20">
+        <button id="saveScoreBtn" onclick="submitScore()">Shrani Rezultat 🏆</button>
+    </div>
+</div>
+
+<!-- Chatbot gumb -->
+<button id="chatBtn" onclick="toggleChat()" title="AI Pomočnik">🤖</button>
+
+<!-- Chatbot okno -->
+<div id="chatWindow">
+    <div id="chatHeader">🤖 Vesoljski AI Pomočnik</div>
+    <div id="chatMessages">
+        <div class="chatMsg ai">Zdravo! 👋 Sem tvoj vesoljski AI pomočnik. Vprašaj me karkoli!</div>
+    </div>
+    <div id="chatInputRow">
+        <input type="text" id="chatInput" placeholder="Napiši sporočilo..." onkeydown="if(event.key==='Enter') sendChat()">
+        <button id="chatSend" onclick="sendChat()">➤</button>
+    </div>
+</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+const W = 800, H = 500;
+
+// =====================
+// ZVEZDE (STARS)
+// =====================
+const stars = Array.from({ length: 150 }, () => ({
+    x: Math.random() * W,
+    y: Math.random() * H,
+    r: Math.random() * 1.6 + 0.2,
+    speed: Math.random() * 0.3 + 0.05
+}));
+
+// =====================
+// TIPKOVNICA (KEYBOARD)
+// =====================
+const keys = {};
+document.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Space' && !e.target.matches('input')) { e.preventDefault(); shoot(); }
+    if (e.code === 'Enter' && gameState === 'gameover') restartGame();
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// =====================
+// IGRALEC (PLAYER)
+// =====================
+const player = {
+    x: W / 2 - 20, y: H - 65,
+    w: 40, h: 50,
+    speed: 5, lives: 3, invincible: 0,
+
+    update() {
+        if ((keys['ArrowLeft']  || keys['KeyA']) && this.x > 0)          this.x -= this.speed;
+        if ((keys['ArrowRight'] || keys['KeyD']) && this.x + this.w < W) this.x += this.speed;
+        if (this.invincible > 0) this.invincible--;
+    },
+
+    draw() {
+        if (this.invincible > 0 && Math.floor(this.invincible / 6) % 2 === 0) return;
+        const cx = this.x + this.w / 2;
+        const flameH = 10 + Math.random() * 8;
+        const moving = keys['ArrowLeft'] || keys['KeyA'] || keys['ArrowRight'] || keys['KeyD'];
+        ctx.fillStyle = moving ? `hsl(${30 + Math.random()*20}, 100%, 55%)` : 'rgba(255,140,40,0.7)';
+        ctx.beginPath();
+        ctx.moveTo(this.x + 10, this.y + this.h);
+        ctx.lineTo(cx, this.y + this.h + flameH);
+        ctx.lineTo(this.x + this.w - 10, this.y + this.h);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#dde0ff';
+        ctx.beginPath();
+        ctx.moveTo(cx, this.y);
+        ctx.lineTo(this.x + this.w, this.y + this.h - 8);
+        ctx.lineTo(this.x + this.w - 6, this.y + this.h);
+        ctx.lineTo(this.x + 6, this.y + this.h);
+        ctx.lineTo(this.x, this.y + this.h - 8);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#ff6b6b';
+        ctx.beginPath(); ctx.moveTo(this.x, this.y + this.h - 8);
+        ctx.lineTo(this.x - 14, this.y + this.h); ctx.lineTo(this.x + 6, this.y + this.h);
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.moveTo(this.x + this.w, this.y + this.h - 8);
+        ctx.lineTo(this.x + this.w + 14, this.y + this.h); ctx.lineTo(this.x + this.w - 6, this.y + this.h);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#7df9ff'; ctx.shadowBlur = 8; ctx.shadowColor = '#7df9ff';
+        ctx.beginPath(); ctx.arc(cx, this.y + 20, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.arc(cx - 3, this.y + 17, 4, 0, Math.PI * 2); ctx.fill();
+    }
+};
+
+// =====================
+// LASER
+// =====================
+let laser = null;
+const LASER_SPEED = 16;
+
+function shoot() {
+    if (laser || gameState !== 'playing') return;
+    laser = { x: player.x + player.w / 2, topY: player.y, bottomY: player.y };
+}
+
+// =====================
+// PLANETI (PLANETS)
+// =====================
+const planetColors = [
+    { fill: '#ff6b6b', stroke: '#cc3333' },
+    { fill: '#ffd93d', stroke: '#cc9900' },
+    { fill: '#6bcb77', stroke: '#3a8a44' },
+    { fill: '#4d96ff', stroke: '#1a5fcc' },
+    { fill: '#c77dff', stroke: '#7b2fc7' },
+    { fill: '#ff9f43', stroke: '#cc6600' },
+];
+const RADII = { 1: 14, 2: 26, 3: 42 };
+
+class Planet {
+    constructor(x, y, vx, vy, sizeLevel, colorIndex) {
+        this.x = x; this.y = y; this.vx = vx; this.vy = vy;
+        this.sizeLevel = sizeLevel; this.radius = RADII[sizeLevel];
+        this.colorIndex = colorIndex !== undefined ? colorIndex : Math.floor(Math.random() * planetColors.length);
+        this.angle = Math.random() * Math.PI * 2;
+        this.rotSpeed = (Math.random() - 0.5) * 0.03;
+    }
+    update() {
+        this.vy += 0.18; this.x += this.vx; this.y += this.vy; this.angle += this.rotSpeed;
+        if (this.x - this.radius < 0) { this.x = this.radius; this.vx = Math.abs(this.vx); }
+        if (this.x + this.radius > W) { this.x = W - this.radius; this.vx = -Math.abs(this.vx); }
+        if (this.y - this.radius < 0) { this.y = this.radius; this.vy = Math.abs(this.vy); }
+        const floor = H - 10;
+        if (this.y + this.radius > floor) {
+            this.y = floor - this.radius;
+            this.vy = { 1: -5, 2: -7, 3: -9 }[this.sizeLevel];
+        }
+    }
+    draw() {
+        const c = planetColors[this.colorIndex];
+        ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.angle);
+        ctx.beginPath(); ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = c.fill; ctx.fill();
+        ctx.strokeStyle = c.stroke; ctx.lineWidth = 2; ctx.stroke();
+        if (this.sizeLevel === 3) {
+            ctx.beginPath(); ctx.ellipse(0, 0, this.radius * 1.7, this.radius * 0.38, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = c.stroke; ctx.lineWidth = 3; ctx.globalAlpha = 0.7; ctx.stroke(); ctx.globalAlpha = 1;
+        }
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.beginPath(); ctx.arc(this.radius * 0.3, -this.radius * 0.3, this.radius * 0.22, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.beginPath(); ctx.arc(-this.radius * 0.25, -this.radius * 0.35, this.radius * 0.3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+    split() {
+        if (this.sizeLevel <= 1) return [];
+        const newSize = this.sizeLevel - 1;
+        const speed = newSize === 2 ? 3.5 : 5;
+        return [
+            new Planet(this.x, this.y, -speed, -5, newSize, this.colorIndex),
+            new Planet(this.x, this.y,  speed, -5, newSize, this.colorIndex)
+        ];
+    }
+}
+
+// =====================
+// STANJE IGRE (GAME STATE)
+// =====================
+let planets = [], score = 0, level = 1, gameState = 'playing', timer = 0;
+
+function initLevel(lvl) {
+    planets = []; laser = null;
+    player.x = W / 2 - player.w / 2; player.invincible = 0; gameState = 'playing';
+    const count = Math.min(lvl + 1, 5);
+    for (let i = 0; i < count; i++) {
+        const x  = 100 + Math.random() * (W - 200);
+        const vx = (Math.random() > 0.5 ? 1 : -1) * (1.5 + Math.random() * 1.5 + lvl * 0.2);
+        planets.push(new Planet(x, 80, vx, 0, 3));
+    }
+}
+
+// =====================
+// HUD
+// =====================
+function drawHUD() {
+    ctx.fillStyle = '#7df9ff'; ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'left';   ctx.fillText(`Točke: ${score}`, 14, 28);
+    ctx.textAlign = 'center'; ctx.fillText(`Nivo ${level}`, W / 2, 28);
+    ctx.textAlign = 'right';
+    for (let i = 0; i < player.lives; i++) { ctx.font = '18px Arial'; ctx.fillText('🚀', W - 14 - i * 26, 28); }
+    ctx.textAlign = 'left';
+}
+
+function drawBackground() {
+    ctx.fillStyle = '#05050f'; ctx.fillRect(0, 0, W, H);
+    stars.forEach(s => {
+        s.y += s.speed; if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+        ctx.fillStyle = 'white';
+        ctx.globalAlpha = 0.6 + Math.sin(Date.now() * 0.002 + s.x) * 0.3;
+        ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#0d0d2a'; ctx.fillRect(0, H - 10, W, 10);
+    ctx.fillStyle = '#7df9ff'; ctx.fillRect(0, H - 10, W, 2);
+}
+
+// =====================
+// GLAVNA ZANKA (GAME LOOP)
+// =====================
+function gameLoop() {
+    drawBackground();
+
+    if (gameState === 'playing') {
+        player.update();
+        if (laser) {
+            laser.topY -= LASER_SPEED;
+            if (laser.topY <= 0) { laser = null; }
+            else {
+                for (let i = planets.length - 1; i >= 0; i--) {
+                    const p = planets[i];
+                    if (Math.abs(laser.x - p.x) < p.radius && laser.topY < p.y + p.radius) {
+                        const newPlanets = p.split();
+                        planets.splice(i, 1); planets.push(...newPlanets);
+                        score += (4 - p.sizeLevel) * 15; laser = null; break;
+                    }
+                }
+            }
+        }
+        planets.forEach(p => p.update());
+        if (player.invincible === 0) {
+            for (const p of planets) {
+                const dx = (player.x + player.w/2) - p.x;
+                const dy = (player.y + player.h/2) - p.y;
+                if (Math.sqrt(dx*dx + dy*dy) < p.radius + 16) {
+                    player.lives--; player.invincible = 150; laser = null;
+                    if (player.lives <= 0) { gameState = 'gameover'; showNameModal(); }
+                    break;
+                }
+            }
+        }
+        if (planets.length === 0) { gameState = 'levelcomplete'; timer = 150; }
+        if (laser) {
+            ctx.save(); ctx.shadowBlur = 18; ctx.shadowColor = '#00ff88';
+            ctx.strokeStyle = '#00ff88'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(laser.x, laser.bottomY); ctx.lineTo(laser.x, laser.topY); ctx.stroke();
+            ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(laser.x, laser.topY, 4, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+        }
+        planets.forEach(p => p.draw()); player.draw(); drawHUD();
+
+    } else if (gameState === 'levelcomplete') {
+        planets.forEach(p => p.draw()); player.draw(); drawHUD(); timer--;
+        ctx.fillStyle = 'rgba(0,0,0,0.55)'; ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = 'center'; ctx.fillStyle = '#7df9ff'; ctx.font = 'bold 46px Arial';
+        ctx.fillText(`🎉 Nivo ${level} končan!`, W/2, H/2 - 20);
+        ctx.font = '22px Arial'; ctx.fillStyle = 'white'; ctx.fillText(`Točke: ${score}`, W/2, H/2 + 25);
+        ctx.textAlign = 'left';
+        if (timer <= 0) { level++; initLevel(level); }
+
+    } else if (gameState === 'gameover') {
+        planets.forEach(p => p.draw()); player.draw(); drawHUD();
+        ctx.fillStyle = 'rgba(0,0,0,0.65)'; ctx.fillRect(0, 0, W, H);
+        ctx.textAlign = 'center'; ctx.fillStyle = '#ff4444'; ctx.font = 'bold 52px Arial';
+        ctx.shadowBlur = 20; ctx.shadowColor = '#ff0000';
+        ctx.fillText('💥 KONEC IGRE!', W/2, H/2 - 50); ctx.shadowBlur = 0;
+        ctx.fillStyle = 'white'; ctx.font = '26px Arial';
+        ctx.fillText(`Končne točke: ${score}`, W/2, H/2 + 10);
+        ctx.font = '18px Arial'; ctx.fillStyle = '#aaa';
+        ctx.fillText('Pritisni ENTER za ponoven začetek', W/2, H/2 + 55);
+        ctx.textAlign = 'left';
+    }
+    requestAnimationFrame(gameLoop);
+}
+
+function restartGame() {
+    score = 0; level = 1; player.lives = 3; initLevel(1);
+}
+
+// =====================
+// SHRANI REZULTAT (SAVE SCORE)
+// =====================
+function showNameModal() {
+    document.getElementById('modalScore').textContent = `Dosegli ste ${score} točk!`;
+    document.getElementById('nameModal').classList.add('show');
+    document.getElementById('nameInput').focus();
+}
+
+async function submitScore() {
+    const name = document.getElementById('nameInput').value.trim() || 'Neznan';
+    document.getElementById('nameModal').classList.remove('show');
+    document.getElementById('nameInput').value = '';
+    try {
+        await fetch('/api/score', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, points: score })
+        });
+        loadLeaderboard();
+    } catch(e) { console.log('Napaka pri shranjevanju:', e); }
+}
+
+// =====================
+// LESTVICA (LEADERBOARD)
+// =====================
+async function loadLeaderboard() {
+    try {
+        const res  = await fetch('/api/scores');
+        const data = await res.json();
+        const tbody = document.getElementById('scoresBody');
+        if (data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#556">Še ni rezultatov</td></tr>';
+            return;
+        }
+        tbody.innerHTML = data.map((s, i) => `
+            <tr>
+                <td>${i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : i+1}</td>
+                <td>${s.name}</td>
+                <td>${s.points}</td>
+                <td>${s.date}</td>
+            </tr>
+        `).join('');
+    } catch(e) { console.log('Napaka pri nalaganju lestvice:', e); }
+}
+
+// =====================
+// CHATBOT
+// =====================
+function toggleChat() {
+    document.getElementById('chatWindow').classList.toggle('open');
+}
+
+async function sendChat() {
+    const input = document.getElementById('chatInput');
+    const msg   = input.value.trim();
+    if (!msg) return;
+
+    const messages = document.getElementById('chatMessages');
+    messages.innerHTML += `<div class="chatMsg user">${msg}</div>`;
+    input.value = '';
+    document.getElementById('chatSend').disabled = true;
+    messages.innerHTML += `<div class="chatMsg ai" id="typing">✨ Razmišljam...</div>`;
+    messages.scrollTop = messages.scrollHeight;
+
+    try {
+        const res  = await fetch('/api/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: msg, user: 'Igralec' })
+        });
+        const data = await res.json();
+        document.getElementById('typing').remove();
+        messages.innerHTML += `<div class="chatMsg ai">${data.reply || 'Napaka pri odgovoru.'}</div>`;
+    } catch(e) {
+        document.getElementById('typing').remove();
+        messages.innerHTML += `<div class="chatMsg ai">❌ Napaka pri povezavi.</div>`;
+    }
+
+    document.getElementById('chatSend').disabled = false;
+    messages.scrollTop = messages.scrollHeight;
+}
+
+// Ob zagonu naloži lestvico (Load leaderboard on start)
+loadLeaderboard();
+initLevel(1);
+gameLoop();
+</script>
+</body>
+</html>
